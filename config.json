@@ -1,0 +1,14 @@
+{
+  "reminder_time": "18:58",
+  "active_hours": [18, 23],
+  "escalation_gaps_min": [0, 1, 1, 1, 1],
+  "lock_countdown_sec": 5,
+  "messages": [
+    "Hey, it's late. Time to sleep!",
+    "Seriously, GO TO SLEEP.",
+    "SLEEP. NOW. This is your LAST warning.",
+    "I'M NOT ASKING AGAIN.",
+    "That's it. I'm locking your PC."
+  ],
+  "colors": ["#3498db", "#e67e22", "#e74c3c", "#8b0000", "#c0392b"]
+}
