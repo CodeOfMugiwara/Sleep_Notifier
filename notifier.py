@@ -3,6 +3,7 @@ import winsound
 import threading
 import time
 import os
+import datetime
 
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
@@ -22,13 +23,15 @@ LEVEL_THEMES = [
 
 
 class SleepNotifier:
-    def __init__(self, message, color, level, on_dismiss, on_lock, on_skip_today=None):
+    def __init__(self, message, color, level, on_dismiss, on_lock, on_skip_today=None, streak=0, weekly_summary=None):
         self.message = message
         self.color = color
         self.level = level
         self.on_dismiss = on_dismiss
         self.on_lock = on_lock
         self.on_skip_today = on_skip_today
+        self.streak = streak
+        self.weekly_summary = weekly_summary
         self.window = None
         self.countdown_value = None
         self.alarm_active = False
@@ -44,14 +47,14 @@ class SleepNotifier:
 
         self.window = ctk.CTkToplevel()
         self.window.title("Sleep Notifier")
-        self.window.geometry("480x360")
+        self.window.geometry("480x400")
         self.window.configure(fg_color="#ffffff")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
 
         screen_w = self.window.winfo_screenwidth()
         screen_h = self.window.winfo_screenheight()
-        w, h = 480, 360
+        w, h = 480, 400
         x = (screen_w - w) // 2
         y = (screen_h - h) // 2
         self.window.geometry(f"{w}x{h}+{x}+{y}")
@@ -81,6 +84,19 @@ class SleepNotifier:
             text_color="white",
         ).pack(side="left")
 
+        if self.streak > 0:
+            streak_label = ctk.CTkLabel(
+                header,
+                text=f"🔥 {self.streak} day streak",
+                font=ctk.CTkFont(size=13, weight="bold"),
+                fg_color="#00000040",
+                text_color="white",
+                corner_radius=12,
+                padx=10,
+                pady=4,
+            )
+            streak_label.pack(side="right", padx=15)
+
         body = ctk.CTkFrame(self.window, fg_color="#ffffff", corner_radius=0)
         body.pack(fill="both", expand=True)
 
@@ -97,7 +113,28 @@ class SleepNotifier:
             text="Your health matters. Please go to bed.",
             font=ctk.CTkFont(size=13),
             text_color="#6b7280",
-        ).pack(padx=35, pady=(0, 20), anchor="w")
+        ).pack(padx=35, pady=(0, 10), anchor="w")
+
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        day_name = tomorrow.strftime("%A")
+        ctk.CTkLabel(
+            body,
+            text=f"Tomorrow is {day_name}, got any plans?",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=theme["accent"],
+        ).pack(padx=35, pady=(0, 10), anchor="w")
+
+        if self.weekly_summary:
+            ws = self.weekly_summary
+            summary_text = f"This week: slept {ws['nights_slept']} nights, avg at {ws['avg_time']}"
+            if ws["skips"] > 0:
+                summary_text += f", skipped {ws['skips']}"
+            ctk.CTkLabel(
+                body,
+                text=summary_text,
+                font=ctk.CTkFont(size=11),
+                text_color="#9ca3af",
+            ).pack(padx=35, pady=(0, 15), anchor="w")
 
         dismiss_btn = ctk.CTkButton(
             body,
@@ -249,3 +286,87 @@ class SleepNotifier:
 
     def _on_close_attempt(self):
         pass
+
+
+class MorningGreeting:
+    def __init__(self, sleep_time, on_close):
+        self.sleep_time = sleep_time
+        self.on_close = on_close
+        self.window = None
+
+    def show(self):
+        self.window = ctk.CTkToplevel()
+        self.window.title("Good Morning")
+        self.window.geometry("400x220")
+        self.window.configure(fg_color="#ffffff")
+        self.window.overrideredirect(True)
+        self.window.attributes("-topmost", True)
+
+        screen_w = self.window.winfo_screenwidth()
+        screen_h = self.window.winfo_screenheight()
+        w, h = 400, 220
+        x = (screen_w - w) // 2
+        y = screen_h - h - 60
+        self.window.geometry(f"{w}x{h}+{x}+{y}")
+
+        self.window.protocol("WM_DELETE_WINDOW", self._dismiss)
+
+        header = ctk.CTkFrame(self.window, fg_color="#10b981", corner_radius=0, height=70)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+
+        title_frame = ctk.CTkFrame(header, fg_color="transparent")
+        title_frame.pack(expand=True)
+
+        ctk.CTkLabel(
+            title_frame,
+            text="☀",
+            font=ctk.CTkFont(size=28),
+            text_color="white",
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkLabel(
+            title_frame,
+            text="GOOD MORNING",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color="white",
+        ).pack(side="left")
+
+        body = ctk.CTkFrame(self.window, fg_color="#ffffff", corner_radius=0)
+        body.pack(fill="both", expand=True)
+
+        ctk.CTkLabel(
+            body,
+            text=f"You went to sleep at {self.sleep_time} last night.",
+            font=ctk.CTkFont(size=14),
+            text_color="#1f2937",
+        ).pack(padx=30, pady=(20, 5), anchor="w")
+
+        ctk.CTkLabel(
+            body,
+            text="Hope you rested well! Have a great day.",
+            font=ctk.CTkFont(size=12),
+            text_color="#6b7280",
+        ).pack(padx=30, pady=(0, 15), anchor="w")
+
+        dismiss_btn = ctk.CTkButton(
+            body,
+            text="Got it",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="#10b981",
+            hover_color="#059669",
+            text_color="white",
+            height=34,
+            corner_radius=6,
+            command=self._dismiss,
+            cursor="hand2",
+        )
+        dismiss_btn.pack(padx=30, fill="x")
+
+        self.window.after(10000, self._dismiss)
+
+    def _dismiss(self):
+        if self.window:
+            self.window.destroy()
+        if self.on_close:
+            self.on_close()

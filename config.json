@@ -1,7 +1,7 @@
 {
-  "reminder_time": "18:58",
-  "active_hours": [18, 23],
-  "escalation_gaps_min": [0, 1, 1, 1, 1],
+  "reminder_time": "23:00",
+  "active_hours": [23, 4],
+  "escalation_gaps_min": [0, 15, 10, 5, 2],
   "lock_countdown_sec": 5,
   "messages": [
     "Hey, it's late. Time to sleep!",

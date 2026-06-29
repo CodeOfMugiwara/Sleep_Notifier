@@ -7,13 +7,16 @@ import threading
 import queue
 import customtkinter as ctk
 from pathlib import Path
-from notifier import SleepNotifier
+from notifier import SleepNotifier, MorningGreeting
 
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
 LOG_PATH = Path(__file__).parent / "notifier.log"
 PID_PATH = Path(__file__).parent / "notifier.pid"
 SKIP_TODAY_PATH = Path(__file__).parent / "skip_today.json"
+STREAK_PATH = Path(__file__).parent / "streak.json"
+SLEEP_LOG_PATH = Path(__file__).parent / "sleep_log.json"
+MORNING_GREETED_PATH = Path(__file__).parent / "morning_greeted.json"
 
 ui_queue = queue.Queue()
 scheduler_ready = threading.Event()
@@ -75,6 +78,7 @@ def is_skipped_today():
 
 def mark_skip_today():
     SKIP_TODAY_PATH.write_text(json.dumps({"date": datetime.date.today().isoformat()}))
+    log_sleep_event("skip")
 
 
 def cleanup_skip_if_old():
@@ -87,6 +91,142 @@ def cleanup_skip_if_old():
         except Exception:
             SKIP_TODAY_PATH.unlink(missing_ok=True)
 
+
+# --- Streak ---
+
+def load_streak():
+    if STREAK_PATH.exists():
+        try:
+            return json.loads(STREAK_PATH.read_text())
+        except Exception:
+            pass
+    return {"streak": 0, "last_sleep_date": None}
+
+
+def save_streak(data):
+    STREAK_PATH.write_text(json.dumps(data))
+
+
+def record_sleep():
+    today = datetime.date.today().isoformat()
+    streak_data = load_streak()
+    last = streak_data.get("last_sleep_date")
+
+    if last == today:
+        return streak_data["streak"]
+
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+    if last == yesterday:
+        streak_data["streak"] += 1
+    else:
+        streak_data["streak"] = 1
+
+    streak_data["last_sleep_date"] = today
+    save_streak(streak_data)
+    return streak_data["streak"]
+
+
+def reset_streak():
+    save_streak({"streak": 0, "last_sleep_date": None})
+
+
+# --- Sleep Log ---
+
+def load_sleep_log():
+    if SLEEP_LOG_PATH.exists():
+        try:
+            return json.loads(SLEEP_LOG_PATH.read_text())
+        except Exception:
+            pass
+    return []
+
+
+def save_sleep_log(log_data):
+    SLEEP_LOG_PATH.write_text(json.dumps(log_data, indent=2))
+
+
+def log_sleep_event(method):
+    now = datetime.datetime.now()
+    entry = {
+        "date": now.date().isoformat(),
+        "time": now.strftime("%H:%M"),
+        "method": method,
+    }
+    log_data = load_sleep_log()
+    log_data.append(entry)
+    if len(log_data) > 90:
+        log_data = log_data[-90:]
+    save_sleep_log(log_data)
+
+
+def get_weekly_summary():
+    log_data = load_sleep_log()
+    today = datetime.date.today()
+    week_ago = today - datetime.timedelta(days=7)
+
+    weekly = [
+        e for e in log_data
+        if datetime.date.fromisoformat(e["date"]) >= week_ago and e["method"] != "skip"
+    ]
+
+    if not weekly:
+        return None
+
+    total_minutes = 0
+    for e in weekly:
+        h, m = map(int, e["time"].split(":"))
+        minutes = h * 60 + m
+        if minutes < 360:
+            minutes += 1440
+        total_minutes += minutes
+
+    avg_minutes = total_minutes // len(weekly)
+    avg_h = (avg_minutes // 60) % 24
+    avg_m = avg_minutes % 60
+
+    nights_slept = len(weekly)
+    skips = len([
+        e for e in log_data
+        if datetime.date.fromisoformat(e["date"]) >= week_ago and e["method"] == "skip"
+    ])
+
+    return {
+        "avg_time": f"{avg_h:02d}:{avg_m:02d}",
+        "nights_slept": nights_slept,
+        "skips": skips,
+    }
+
+
+# --- Morning Greeting ---
+
+def was_morning_greeted():
+    if MORNING_GREETED_PATH.exists():
+        try:
+            data = json.loads(MORNING_GREETED_PATH.read_text())
+            return data["date"] == datetime.date.today().isoformat()
+        except Exception:
+            pass
+    return False
+
+
+def mark_morning_greeted():
+    MORNING_GREETED_PATH.write_text(
+        json.dumps({"date": datetime.date.today().isoformat()})
+    )
+
+
+def get_last_sleep_time():
+    log_data = load_sleep_log()
+    today = datetime.date.today().isoformat()
+    yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
+
+    for entry in reversed(log_data):
+        if entry["date"] in (today, yesterday) and entry["method"] != "skip":
+            return entry["time"], entry["method"]
+    return None, None
+
+
+# --- Scheduler ---
 
 class SleepScheduler:
     def __init__(self):
@@ -120,6 +260,10 @@ class SleepScheduler:
         messages = self.config["messages"]
         colors = self.config["colors"]
 
+        streak_data = load_streak()
+        streak = streak_data.get("streak", 0)
+        summary = get_weekly_summary()
+
         self.escalation_active = True
 
         for level in range(len(messages)):
@@ -138,7 +282,7 @@ class SleepScheduler:
 
             if level < 4:
                 log(f"Level {level + 1}: {messages[level]}")
-                ui_queue.put(("show", messages[level], colors[level], level))
+                ui_queue.put(("show", messages[level], colors[level], level, streak, summary))
                 ui_done.wait()
 
                 if skip_today_event.is_set():
@@ -155,6 +299,18 @@ class SleepScheduler:
         self.escalation_active = False
         self.current_level = 0
 
+    def check_morning_greeting(self):
+        if was_morning_greeted():
+            return
+
+        sleep_time, method = get_last_sleep_time()
+        if sleep_time is None:
+            return
+
+        mark_morning_greeted()
+        log("Morning greeting shown.")
+        ui_queue.put(("morning", sleep_time, method))
+
     def start(self):
         log("=" * 40)
         log("SLEEP NOTIFIER - Started")
@@ -168,6 +324,8 @@ class SleepScheduler:
             if last_cleanup_date != today:
                 cleanup_skip_if_old()
                 last_cleanup_date = today
+
+            self.check_morning_greeting()
 
             self.config = load_config()
 
@@ -208,13 +366,18 @@ class App:
                 cmd = ui_queue.get_nowait()
 
                 if cmd[0] == "show":
-                    _, message, color, level = cmd
-                    self._show_notifier(message, color, level)
+                    _, message, color, level, streak, summary = cmd
+                    self._show_notifier(message, color, level, streak, summary)
                     return
 
                 elif cmd[0] == "countdown":
                     _, message, seconds = cmd
                     self._show_countdown(message, seconds)
+                    return
+
+                elif cmd[0] == "morning":
+                    _, sleep_time, method = cmd
+                    self._show_morning(sleep_time, method)
                     return
 
                 elif cmd[0] == "stop":
@@ -226,13 +389,17 @@ class App:
 
         self.root.after(100, self.process_queue)
 
-    def _show_notifier(self, message, color, level):
+    def _show_notifier(self, message, color, level, streak, summary):
         def on_dismiss():
+            record_sleep()
+            log_sleep_event("dismiss")
+            streak_val = record_sleep()
             ui_done.set()
             self.root.after(100, self.process_queue)
 
         def on_skip_today():
             mark_skip_today()
+            reset_streak()
             skip_today_event.set()
             ui_done.set()
             self.root.after(100, self.process_queue)
@@ -244,11 +411,15 @@ class App:
             on_dismiss=on_dismiss,
             on_lock=lock_pc,
             on_skip_today=on_skip_today,
+            streak=streak,
+            weekly_summary=summary,
         )
         self.current_notifier.show()
 
     def _show_countdown(self, message, seconds):
         def on_lock_done():
+            record_sleep()
+            log_sleep_event("lock")
             ui_done.set()
             self.root.after(100, self.process_queue)
 
@@ -265,8 +436,17 @@ class App:
             on_dismiss=lambda: None,
             on_lock=wrapped_lock,
             on_skip_today=None,
+            streak=0,
+            weekly_summary=None,
         )
         self.current_notifier.show_countdown(seconds)
+
+    def _show_morning(self, sleep_time, method):
+        def on_close():
+            self.root.after(100, self.process_queue)
+
+        greeting = MorningGreeting(sleep_time=sleep_time, on_close=on_close)
+        greeting.show()
 
     def run(self):
         self.root.after(100, self.process_queue)
