@@ -4,3 +4,6 @@ __pycache__/
 notifier.pid
 notifier.log
 skip_today.json
+streak.json
+sleep_log.json
+morning_greeted.json

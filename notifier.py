@@ -306,7 +306,7 @@ class MorningGreeting:
         screen_h = self.window.winfo_screenheight()
         w, h = 400, 220
         x = (screen_w - w) // 2
-        y = screen_h - h - 60
+        y = (screen_h - h) // 2
         self.window.geometry(f"{w}x{h}+{x}+{y}")
 
         self.window.protocol("WM_DELETE_WINDOW", self._dismiss)
