@@ -234,6 +234,7 @@ class SleepScheduler:
         self.current_level = 0
         self.running = True
         self.escalation_active = False
+        self.triggered_today = False
 
     def get_target_time(self):
         h, m = self.config["reminder_time"].split(":")
@@ -321,32 +322,23 @@ class SleepScheduler:
             if last_cleanup_date != today:
                 cleanup_skip_if_old()
                 last_cleanup_date = today
+                self.triggered_today = False
 
             self.check_morning_greeting()
-
             self.config = load_config()
 
-            if not self.is_within_active_hours():
-                target = self.get_target_time()
-                wait = self.seconds_until(target)
-                next_time = datetime.datetime.now() + datetime.timedelta(seconds=wait)
-                log(f"Outside active hours. Next reminder at: {next_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                time.sleep(wait)
-                continue
+            now = datetime.datetime.now()
+            target_time = self.get_target_time()
+            target = datetime.datetime.combine(now.date(), target_time)
 
-            if is_skipped_today():
-                log("Today is skipped. Waiting for next day...")
-                target = self.get_target_time()
-                wait = self.seconds_until(target)
-                next_time = datetime.datetime.now() + datetime.timedelta(seconds=wait)
-                log(f"Next reminder at: {next_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                time.sleep(wait)
-                continue
+            if self.is_within_active_hours() and not is_skipped_today() and now >= target and not self.triggered_today:
+                log("SLEEP REMINDER TRIGGERED")
+                self.run_escalation()
+                self.current_level = 0
+                self.triggered_today = True
+                time.sleep(60)
 
-            log("SLEEP REMINDER TRIGGERED")
-            self.run_escalation()
-            self.current_level = 0
-            time.sleep(60)
+            time.sleep(30)
 
 
 class App:
