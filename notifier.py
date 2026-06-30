@@ -335,16 +335,21 @@ class MorningGreeting:
         body = ctk.CTkFrame(self.window, fg_color="#ffffff", corner_radius=0)
         body.pack(fill="both", expand=True)
 
+        if self.sleep_time:
+            msg = f"You went to sleep at {self.sleep_time} last night."
+        else:
+            msg = "Good morning! Hope you slept well."
+
         ctk.CTkLabel(
             body,
-            text=f"You went to sleep at {self.sleep_time} last night.",
+            text=msg,
             font=ctk.CTkFont(size=14),
             text_color="#1f2937",
         ).pack(padx=30, pady=(20, 5), anchor="w")
 
         ctk.CTkLabel(
             body,
-            text="Hope you rested well! Have a great day.",
+            text="Have a great day ahead!",
             font=ctk.CTkFont(size=12),
             text_color="#6b7280",
         ).pack(padx=30, pady=(0, 15), anchor="w")

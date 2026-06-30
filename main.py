@@ -304,9 +304,6 @@ class SleepScheduler:
             return
 
         sleep_time, method = get_last_sleep_time()
-        if sleep_time is None:
-            return
-
         mark_morning_greeted()
         log("Morning greeting shown.")
         ui_queue.put(("morning", sleep_time, method))
