@@ -353,9 +353,14 @@ class App:
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         self.root = ctk.CTk()
-        self.root.withdraw()
-        self.root.geometry("0x0+0+0")
+        self.root.after(0, self._hide_root)
         self.current_notifier = None
+        self.notifier_windows = []
+
+    def _hide_root(self):
+        self.root.withdraw()
+        self.root.overrideredirect(True)
+        self.root.geometry("1x1+9999+9999")
 
     def process_queue(self):
         try:

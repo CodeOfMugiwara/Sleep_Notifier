@@ -238,7 +238,9 @@ class SleepNotifier:
 
     def _tick_countdown(self):
         if self.countdown_value <= 0:
-            self.window.destroy()
+            if self.window and self.window.winfo_exists():
+                self.window.withdraw()
+                self.window.destroy()
             self.on_lock()
             return
 
@@ -259,13 +261,15 @@ class SleepNotifier:
 
     def _dismiss(self):
         self.alarm_active = False
-        if self.window:
+        if self.window and self.window.winfo_exists():
+            self.window.withdraw()
             self.window.destroy()
         self.on_dismiss()
 
     def _skip_today(self):
         self.alarm_active = False
-        if self.window:
+        if self.window and self.window.winfo_exists():
+            self.window.withdraw()
             self.window.destroy()
         if self.on_skip_today:
             self.on_skip_today()
@@ -356,10 +360,15 @@ class MorningGreeting:
         )
         dismiss_btn.pack(padx=30, fill="x")
 
-        self.window.after(10000, self._dismiss)
+        def safe_dismiss():
+            if self.window and self.window.winfo_exists():
+                self._dismiss()
+
+        self.window.after(10000, safe_dismiss)
 
     def _dismiss(self):
-        if self.window:
+        if self.window and self.window.winfo_exists():
+            self.window.withdraw()
             self.window.destroy()
         if self.on_close:
             self.on_close()
@@ -469,10 +478,15 @@ class SleepStats:
         )
         dismiss_btn.pack(padx=30, fill="x")
 
-        self.window.after(15000, self._dismiss)
+        def safe_dismiss():
+            if self.window and self.window.winfo_exists():
+                self._dismiss()
+
+        self.window.after(15000, safe_dismiss)
 
     def _dismiss(self):
-        if self.window:
+        if self.window and self.window.winfo_exists():
+            self.window.withdraw()
             self.window.destroy()
         if self.on_close:
             self.on_close()
