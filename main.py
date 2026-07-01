@@ -7,7 +7,7 @@ import threading
 import queue
 import customtkinter as ctk
 from pathlib import Path
-from notifier import SleepNotifier, MorningGreeting
+from notifier import SleepNotifier, MorningGreeting, SleepStats
 
 
 CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -235,6 +235,7 @@ class SleepScheduler:
         self.running = True
         self.escalation_active = False
         self.triggered_today = False
+        self.morning_handled_today = False
 
     def get_target_time(self):
         h, m = self.config["reminder_time"].split(":")
@@ -263,7 +264,6 @@ class SleepScheduler:
 
         streak_data = load_streak()
         streak = streak_data.get("streak", 0)
-        summary = get_weekly_summary()
 
         self.escalation_active = True
 
@@ -283,7 +283,7 @@ class SleepScheduler:
 
             if level < 4:
                 log(f"Level {level + 1}: {messages[level]}")
-                ui_queue.put(("show", messages[level], colors[level], level, streak, summary))
+                ui_queue.put(("show", messages[level], colors[level], level, streak))
                 ui_done.wait()
 
                 if skip_today_event.is_set():
@@ -301,13 +301,19 @@ class SleepScheduler:
         self.current_level = 0
 
     def check_morning_greeting(self):
+        if self.morning_handled_today:
+            return
+
         if was_morning_greeted():
+            self.morning_handled_today = True
             return
 
         sleep_time, method = get_last_sleep_time()
+        summary = get_weekly_summary()
         mark_morning_greeted()
         log("Morning greeting shown.")
-        ui_queue.put(("morning", sleep_time, method))
+        self.morning_handled_today = True
+        ui_queue.put(("morning", sleep_time, method, summary))
 
     def start(self):
         log("=" * 40)
@@ -323,6 +329,7 @@ class SleepScheduler:
                 cleanup_skip_if_old()
                 last_cleanup_date = today
                 self.triggered_today = False
+                self.morning_handled_today = False
 
             self.check_morning_greeting()
             self.config = load_config()
@@ -347,6 +354,7 @@ class App:
         ctk.set_default_color_theme("blue")
         self.root = ctk.CTk()
         self.root.withdraw()
+        self.root.geometry("0x0+0+0")
         self.current_notifier = None
 
     def process_queue(self):
@@ -355,8 +363,8 @@ class App:
                 cmd = ui_queue.get_nowait()
 
                 if cmd[0] == "show":
-                    _, message, color, level, streak, summary = cmd
-                    self._show_notifier(message, color, level, streak, summary)
+                    _, message, color, level, streak = cmd
+                    self._show_notifier(message, color, level, streak)
                     return
 
                 elif cmd[0] == "countdown":
@@ -365,8 +373,8 @@ class App:
                     return
 
                 elif cmd[0] == "morning":
-                    _, sleep_time, method = cmd
-                    self._show_morning(sleep_time, method)
+                    _, sleep_time, method, summary = cmd
+                    self._show_morning(sleep_time, method, summary)
                     return
 
                 elif cmd[0] == "stop":
@@ -378,11 +386,10 @@ class App:
 
         self.root.after(100, self.process_queue)
 
-    def _show_notifier(self, message, color, level, streak, summary):
+    def _show_notifier(self, message, color, level, streak):
         def on_dismiss():
             record_sleep()
             log_sleep_event("dismiss")
-            streak_val = record_sleep()
             ui_done.set()
             self.root.after(100, self.process_queue)
 
@@ -401,7 +408,6 @@ class App:
             on_lock=lock_pc,
             on_skip_today=on_skip_today,
             streak=streak,
-            weekly_summary=summary,
         )
         self.current_notifier.show()
 
@@ -426,16 +432,22 @@ class App:
             on_lock=wrapped_lock,
             on_skip_today=None,
             streak=0,
-            weekly_summary=None,
         )
         self.current_notifier.show_countdown(seconds)
 
-    def _show_morning(self, sleep_time, method):
-        def on_close():
-            self.root.after(100, self.process_queue)
+    def _show_morning(self, sleep_time, method, summary):
+        def on_greeting_close():
+            if summary:
+                stats = SleepStats(weekly_summary=summary, on_close=self._on_stats_close)
+                stats.show()
+            else:
+                self.root.after(100, self.process_queue)
 
-        greeting = MorningGreeting(sleep_time=sleep_time, on_close=on_close)
+        greeting = MorningGreeting(sleep_time=sleep_time, on_close=on_greeting_close)
         greeting.show()
+
+    def _on_stats_close(self):
+        self.root.after(100, self.process_queue)
 
     def run(self):
         self.root.after(100, self.process_queue)
