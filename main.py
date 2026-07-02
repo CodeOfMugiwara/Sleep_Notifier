@@ -354,6 +354,8 @@ class App:
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         self.root = tk.Tk()
+        self.root.overrideredirect(True)
+        self.root.geometry("0x0+9999+9999")
         self.root.withdraw()
         self.current_notifier = None
 
