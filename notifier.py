@@ -22,6 +22,12 @@ LEVEL_THEMES = [
 ]
 
 
+def safe_destroy(window):
+    if window and window.winfo_exists():
+        window.withdraw()
+        window.destroy()
+
+
 class SleepNotifier:
     def __init__(self, message, color, level, on_dismiss, on_lock, on_skip_today=None, streak=0):
         self.message = message
@@ -45,14 +51,12 @@ class SleepNotifier:
         self._play_appear_sound()
 
         self.window = ctk.CTkToplevel()
+        self.window.withdraw()
         self.window.title("Sleep Notifier")
         self.window.configure(fg_color="#ffffff")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
 
-        self.window.after(10, self._center_and_build)
-
-    def _center_and_build(self):
         screen_w = self.window.winfo_screenwidth()
         screen_h = self.window.winfo_screenheight()
         w, h = 480, 400
@@ -170,18 +174,18 @@ class SleepNotifier:
         if self.level == 2:
             self._start_alarm()
 
+        self.window.deiconify()
+
     def show_countdown(self, seconds):
         self._play_appear_sound()
 
         self.window = ctk.CTkToplevel()
+        self.window.withdraw()
         self.window.title("Locking PC")
         self.window.configure(fg_color="#ffffff")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
 
-        self.window.after(10, lambda: self._center_and_build_countdown(seconds))
-
-    def _center_and_build_countdown(self, seconds):
         screen_w = self.window.winfo_screenwidth()
         screen_h = self.window.winfo_screenheight()
         w, h = 480, 360
@@ -234,13 +238,12 @@ class SleepNotifier:
         bottom = ctk.CTkFrame(self.window, fg_color="#f3f4f6", corner_radius=0, height=3)
         bottom.pack(fill="x", side="bottom")
 
+        self.window.deiconify()
         self._tick_countdown()
 
     def _tick_countdown(self):
         if self.countdown_value <= 0:
-            if self.window and self.window.winfo_exists():
-                self.window.withdraw()
-                self.window.destroy()
+            safe_destroy(self.window)
             self.on_lock()
             return
 
@@ -261,16 +264,12 @@ class SleepNotifier:
 
     def _dismiss(self):
         self.alarm_active = False
-        if self.window and self.window.winfo_exists():
-            self.window.withdraw()
-            self.window.destroy()
+        safe_destroy(self.window)
         self.on_dismiss()
 
     def _skip_today(self):
         self.alarm_active = False
-        if self.window and self.window.winfo_exists():
-            self.window.withdraw()
-            self.window.destroy()
+        safe_destroy(self.window)
         if self.on_skip_today:
             self.on_skip_today()
 
@@ -286,14 +285,12 @@ class MorningGreeting:
 
     def show(self):
         self.window = ctk.CTkToplevel()
+        self.window.withdraw()
         self.window.title("Good Morning")
         self.window.configure(fg_color="#ffffff")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
 
-        self.window.after(10, self._center_and_build)
-
-    def _center_and_build(self):
         screen_w = self.window.winfo_screenwidth()
         screen_h = self.window.winfo_screenheight()
         w, h = 400, 220
@@ -360,16 +357,15 @@ class MorningGreeting:
         )
         dismiss_btn.pack(padx=30, fill="x")
 
-        def safe_dismiss():
-            if self.window and self.window.winfo_exists():
-                self._dismiss()
+        self.window.deiconify()
+        self.window.after(10000, self._safe_dismiss)
 
-        self.window.after(10000, safe_dismiss)
+    def _safe_dismiss(self):
+        if self.window and self.window.winfo_exists():
+            self._dismiss()
 
     def _dismiss(self):
-        if self.window and self.window.winfo_exists():
-            self.window.withdraw()
-            self.window.destroy()
+        safe_destroy(self.window)
         if self.on_close:
             self.on_close()
 
@@ -382,14 +378,12 @@ class SleepStats:
 
     def show(self):
         self.window = ctk.CTkToplevel()
+        self.window.withdraw()
         self.window.title("Sleep Stats")
         self.window.configure(fg_color="#ffffff")
         self.window.overrideredirect(True)
         self.window.attributes("-topmost", True)
 
-        self.window.after(10, self._center_and_build)
-
-    def _center_and_build(self):
         screen_w = self.window.winfo_screenwidth()
         screen_h = self.window.winfo_screenheight()
         w, h = 400, 260
@@ -478,15 +472,14 @@ class SleepStats:
         )
         dismiss_btn.pack(padx=30, fill="x")
 
-        def safe_dismiss():
-            if self.window and self.window.winfo_exists():
-                self._dismiss()
+        self.window.deiconify()
+        self.window.after(15000, self._safe_dismiss)
 
-        self.window.after(15000, safe_dismiss)
+    def _safe_dismiss(self):
+        if self.window and self.window.winfo_exists():
+            self._dismiss()
 
     def _dismiss(self):
-        if self.window and self.window.winfo_exists():
-            self.window.withdraw()
-            self.window.destroy()
+        safe_destroy(self.window)
         if self.on_close:
             self.on_close()

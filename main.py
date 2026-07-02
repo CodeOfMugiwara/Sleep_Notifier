@@ -456,12 +456,28 @@ class App:
         self.root.mainloop()
 
 
+def cleanup_orphaned_windows():
+    try:
+        tmp = tk.Tk()
+        tmp.withdraw()
+        for w in tmp.winfo_children():
+            try:
+                w.withdraw()
+                w.destroy()
+            except Exception:
+                pass
+        tmp.destroy()
+    except Exception:
+        pass
+
+
 def main():
     if is_already_running():
         log("Already running. Exiting.")
         sys.exit(0)
 
     write_pid()
+    cleanup_orphaned_windows()
 
     scheduler = SleepScheduler()
     thread = threading.Thread(target=scheduler.start, daemon=True)
