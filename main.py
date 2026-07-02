@@ -5,6 +5,7 @@ import subprocess
 import sys
 import threading
 import queue
+import tkinter as tk
 import customtkinter as ctk
 from pathlib import Path
 from notifier import SleepNotifier, MorningGreeting, SleepStats
@@ -352,15 +353,9 @@ class App:
     def __init__(self):
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
-        self.root = ctk.CTk()
-        self.root.after(0, self._hide_root)
-        self.current_notifier = None
-        self.notifier_windows = []
-
-    def _hide_root(self):
+        self.root = tk.Tk()
         self.root.withdraw()
-        self.root.overrideredirect(True)
-        self.root.geometry("1x1+9999+9999")
+        self.current_notifier = None
 
     def process_queue(self):
         try:
