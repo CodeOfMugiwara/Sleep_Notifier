@@ -457,16 +457,29 @@ class App:
 
 
 def cleanup_orphaned_windows():
+    import ctypes
+    user32 = ctypes.windll.user32
+
+    def close_by_title(title):
+        hwnd = user32.FindWindowW(None, title)
+        while hwnd:
+            user32.PostMessageW(hwnd, 0x0010, 0, 0)
+            hwnd = user32.FindWindowW(None, title)
+
+    for t in ["Sleep Notifier", "Locking PC", "Good Morning", "Sleep Stats"]:
+        close_by_title(t)
+
     try:
-        tmp = tk.Tk()
-        tmp.withdraw()
-        for w in tmp.winfo_children():
-            try:
-                w.withdraw()
-                w.destroy()
-            except Exception:
-                pass
-        tmp.destroy()
+        for proc_name in ["pythonw.exe", "python.exe"]:
+            for p in subprocess.run(
+                ["tasklist", "/FI", f"IMAGENAME eq {proc_name}", "/NH"],
+                capture_output=True, text=True
+            ).stdout.strip().split("\n"):
+                parts = p.split()
+                if len(parts) >= 2 and parts[0] == proc_name:
+                    pid = int(parts[1])
+                    if pid != subprocess.os.getpid():
+                        subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True)
     except Exception:
         pass
 
